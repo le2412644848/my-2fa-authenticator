@@ -1,12 +1,18 @@
 package com.f2a.authenticator.ui.theme
 
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -196,6 +202,18 @@ object Touch {
     val SegmentedHeight = 40.dp
     val CompactChipHeight = 34.dp
 }
+
+object Layout {
+    /** 横屏与平板上正文列的最大宽度，避免卡片与表单被拉满全宽。 */
+    val ContentMaxWidth = 640.dp
+}
+
+/** 占满可用宽度，但内容列限制在 [max] 以内并水平居中。 */
+fun Modifier.contentMaxWidth(max: Dp = Layout.ContentMaxWidth): Modifier =
+    fillMaxWidth()
+        .wrapContentWidth(Alignment.CenterHorizontally)
+        .widthIn(max = max)
+        .fillMaxWidth()
 
 val AppTypography = Typography(
     headlineMedium = Type.TitlePage,

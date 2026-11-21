@@ -107,6 +107,7 @@ import com.f2a.authenticator.ui.theme.Radius
 import com.f2a.authenticator.ui.theme.Space
 import com.f2a.authenticator.ui.theme.Touch
 import com.f2a.authenticator.ui.theme.Type
+import com.f2a.authenticator.ui.theme.contentMaxWidth
 import com.f2a.authenticator.ui.utils.QrBitmapRenderer
 import com.f2a.authenticator.utils.ClipboardGuard
 import com.f2a.authenticator.utils.SecureClipboard
@@ -218,6 +219,7 @@ fun TokenDetailScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
+                .contentMaxWidth()
                 .padding(horizontal = Space.XL, vertical = Space.L),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(Space.XL)

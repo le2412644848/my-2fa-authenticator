@@ -16,12 +16,14 @@ import com.f2a.authenticator.data.local.VaultPreferencesStore
 import com.f2a.authenticator.data.model.AuthToken
 import com.f2a.authenticator.data.model.BackupPayload
 import com.f2a.authenticator.data.model.SortMode
+import com.f2a.authenticator.data.model.TokenType
 import com.f2a.authenticator.data.model.Workspace
 import com.f2a.authenticator.di.AppContainer
 import com.f2a.authenticator.security.BackgroundLockMonitor
 import com.f2a.authenticator.security.Clock
 import com.f2a.authenticator.security.PinConfigResult
 import com.f2a.authenticator.security.SecurityLockManager
+import com.f2a.authenticator.ui.state.ActiveModal
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -364,6 +366,59 @@ class ViewModelsTest {
         assertEquals(SecurityLockManager.VerifyResult.DuressTriggered, clearRes)
         assertTrue(container.tokenRepository.tokens.value.isEmpty())
         assertFalse(vm.uiState.first { !it.hasDuressPin }.hasDuressPin)
+
+        collectJob.cancel()
+        container.tokenRepository.close()
+    }
+
+    @Test
+    fun appViewModel_addTokenDraft_survivesInMemoryAndIsClearedOnCloseAndLock() = runTest(testDispatcher) {
+        val (app, container, _) = createEnv()
+        val vm = AppViewModel(app, container)
+        val collectJob = launch { vm.uiState.collect {} }
+        vm.setupPinAndUnlock("258013") {}
+        advanceUntilIdle()
+
+        fun fillDraft() {
+            vm.openModal(ActiveModal.AddToken)
+            vm.addTokenDraft.apply {
+                rawUriOrKey = "JBSWY3DPEHPK3PXP"
+                secret = "JBSWY3DPEHPK3PXP"
+                issuer = "AWS"
+                selectedWorkspaceId = "ws-1"
+                selectedTagIds = listOf("tag-1")
+                selectedType = TokenType.HOTP
+                selectedCounter = 7L
+                step = 2
+            }
+        }
+
+        fun assertDraftEmpty() {
+            vm.addTokenDraft.apply {
+                assertEquals("", rawUriOrKey)
+                assertEquals("", secret)
+                assertEquals("", issuer)
+                assertEquals(null, selectedWorkspaceId)
+                assertTrue(selectedTagIds.isEmpty())
+                assertEquals(TokenType.TOTP, selectedType)
+                assertEquals(0L, selectedCounter)
+                assertEquals(1, step)
+            }
+        }
+
+        // 草稿由 ViewModel 持有：界面重建（旋转）后读到的仍是同一份输入
+        fillDraft()
+        assertEquals("JBSWY3DPEHPK3PXP", vm.addTokenDraft.rawUriOrKey)
+        assertEquals(2, vm.addTokenDraft.step)
+
+        vm.closeModal()
+        assertDraftEmpty()
+
+        fillDraft()
+        vm.lockNow()
+        advanceUntilIdle()
+        assertEquals(ActiveModal.None, vm.uiState.value.activeModal)
+        assertDraftEmpty()
 
         collectJob.cancel()
         container.tokenRepository.close()

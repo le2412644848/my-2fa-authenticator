@@ -36,12 +36,12 @@ import com.f2a.authenticator.ui.theme.Type
 fun EmptyState(
     icon: ImageVector,
     title: String,
+    modifier: Modifier = Modifier,
     description: String? = null,
     primaryActionText: String? = null,
     onPrimaryAction: (() -> Unit)? = null,
     secondaryActionText: String? = null,
-    onSecondaryAction: (() -> Unit)? = null,
-    modifier: Modifier = Modifier
+    onSecondaryAction: (() -> Unit)? = null
 ) {
     val semantic = LocalSemanticColors.current
     Column(
@@ -108,8 +108,8 @@ fun EmptyState(
 fun EmptyStateCompact(
     icon: ImageVector,
     title: String,
-    description: String? = null,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    description: String? = null
 ) {
     val semantic = LocalSemanticColors.current
     Column(

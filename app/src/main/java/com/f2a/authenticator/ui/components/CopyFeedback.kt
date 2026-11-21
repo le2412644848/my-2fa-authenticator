@@ -51,11 +51,18 @@ object CopyFeedback {
         }
     }
 
+    /**
+     * 开启自动清除时，倒计时浮条与按钮的“已复制”状态已构成完整反馈，
+     * 再弹 Snackbar 只会与系统剪贴板浮层重叠；仅在无浮条时才需要它。
+     */
+    fun needsSnackbar(clipboardClearSeconds: Int): Boolean = clipboardClearSeconds <= 0
+
     fun show(
         snackbarHostState: SnackbarHostState,
         scope: CoroutineScope,
         clipboardClearSeconds: Int
     ) {
+        if (!needsSnackbar(clipboardClearSeconds)) return
         scope.launch {
             snackbarHostState.currentSnackbarData?.dismiss()
             snackbarHostState.showSnackbar(buildMessage(clipboardClearSeconds))

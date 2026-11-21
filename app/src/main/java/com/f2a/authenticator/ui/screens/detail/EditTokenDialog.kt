@@ -118,7 +118,8 @@ fun EditTokenDialog(
                     OutlinedTextField(
                         value = editIssuer,
                         onValueChange = { editIssuer = it; validationError = "" },
-                        label = { Text("平台/发行方 (修改将同步调整首页分组)") },
+                        label = { Text("平台/发行方") },
+                        supportingText = { Text("修改将同步调整首页分组") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(Radius.S)
@@ -140,7 +141,8 @@ fun EditTokenDialog(
                     OutlinedTextField(
                         value = editTenantEnv,
                         onValueChange = { editTenantEnv = it },
-                        label = { Text("环境/租户角标 (如: Prod, Dev, 测试号)") },
+                        label = { Text("环境/租户角标") },
+                        placeholder = { Text("如 Prod、Dev、测试号") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(Radius.S)

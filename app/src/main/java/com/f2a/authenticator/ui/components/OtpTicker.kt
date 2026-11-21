@@ -176,9 +176,9 @@ fun OtpLinearProgressBar(
 fun OtpRowCodeDisplay(
     token: AuthToken,
     showNextCodePreview: Boolean,
+    modifier: Modifier = Modifier,
     isMasked: Boolean = false,
-    nowMsProvider: () -> Long,
-    modifier: Modifier = Modifier
+    nowMsProvider: () -> Long
 ) {
     val semantic = LocalSemanticColors.current
     val currentStep by remember(token.period, token.type, token.counter, nowMsProvider) {
@@ -300,9 +300,9 @@ fun OtpRowCodeDisplay(
 fun OtpHeroCodeDisplay(
     token: AuthToken,
     cycleOffset: Int,
+    modifier: Modifier = Modifier,
     isMasked: Boolean = false,
-    nowMsProvider: () -> Long,
-    modifier: Modifier = Modifier
+    nowMsProvider: () -> Long
 ) {
     val semantic = LocalSemanticColors.current
     val currentStep by remember(token.period, token.type, token.counter, nowMsProvider) {

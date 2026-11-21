@@ -40,8 +40,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -64,6 +62,7 @@ import com.f2a.authenticator.totp.ExternalImportResult
 import com.f2a.authenticator.totp.OtpUriParser
 import com.f2a.authenticator.totp.WorkspaceInferenceEngine
 import com.f2a.authenticator.ui.components.parseHexColor
+import com.f2a.authenticator.ui.state.AddTokenDraft
 import com.f2a.authenticator.ui.theme.IconSize
 import com.f2a.authenticator.ui.theme.LocalSemanticColors
 import com.f2a.authenticator.ui.theme.Radius
@@ -80,6 +79,7 @@ fun AddTokenDialog(
     workspaces: List<Workspace>,
     tags: List<Tag>,
     activeWorkspaceId: String,
+    draft: AddTokenDraft,
     onDismiss: () -> Unit,
     onConfirm: (AuthToken) -> Unit,
     onBatchConfirm: (List<AuthToken>) -> Unit,
@@ -95,27 +95,27 @@ fun AddTokenDialog(
         }
     }
 
-    // 【安全红线】rawUriOrKey 与 secret 禁止使用 rememberSaveable，防止明文种子落入 Bundle
-    var rawUriOrKey by remember { mutableStateOf("") }
-    var issuer by remember { mutableStateOf("") }
-    var accountName by remember { mutableStateOf("") }
-    var tenantEnv by remember { mutableStateOf("") }
-    var secret by remember { mutableStateOf("") }
-    var note by remember { mutableStateOf("") }
-    var selectedWorkspaceId by remember { mutableStateOf(initialWsId) }
-    var selectedTagIds by remember { mutableStateOf(listOf<String>()) }
-    var isPinned by remember { mutableStateOf(false) }
+    // 【安全红线】输入草稿只存 ViewModel 内存（旋转不丢），禁止 rememberSaveable，防止明文种子落入 Bundle
+    var rawUriOrKey by draft::rawUriOrKey
+    var issuer by draft::issuer
+    var accountName by draft::accountName
+    var tenantEnv by draft::tenantEnv
+    var secret by draft::secret
+    var note by draft::note
+    val selectedWorkspaceId = draft.selectedWorkspaceId ?: initialWsId
+    var selectedTagIds by draft::selectedTagIds
+    var isPinned by draft::isPinned
 
-    var selectedAlgorithm by remember { mutableStateOf("SHA1") }
-    var selectedDigits by remember { mutableIntStateOf(6) }
-    var selectedPeriod by remember { mutableIntStateOf(30) }
-    var selectedCounter by remember { mutableLongStateOf(0L) }
-    var selectedType by remember { mutableStateOf(TokenType.TOTP) }
+    var selectedAlgorithm by draft::selectedAlgorithm
+    var selectedDigits by draft::selectedDigits
+    var selectedPeriod by draft::selectedPeriod
+    var selectedCounter by draft::selectedCounter
+    var selectedType by draft::selectedType
 
     var errorMessage by remember { mutableStateOf("") }
     var batchPreview by remember { mutableStateOf<ExternalImportResult?>(null) }
-    var step by remember { mutableIntStateOf(1) }
-    var showAdvanced by remember { mutableStateOf(false) }
+    var step by draft::step
+    var showAdvanced by draft::showAdvanced
 
     // 异步识别多行 otpauth://、Google 迁移链接与 Aegis / 2FAS / Bitwarden JSON，避免阻塞主线程
     val batchDefaultWorkspaceId = if (activeWorkspaceId == "all") "all" else selectedWorkspaceId
@@ -195,7 +195,7 @@ fun AddTokenDialog(
                         currentActiveWorkspaceId = activeWorkspaceId,
                         allWorkspaces = workspaces
                     )
-                    selectedWorkspaceId = suggestion.workspaceId
+                    draft.selectedWorkspaceId = suggestion.workspaceId
                     val validTagIds = tags.map { it.id }.toHashSet()
                     val filteredSuggestedTags = suggestion.suggestedTagIds.filter {
                         validTagIds.isEmpty() || it in validTagIds
@@ -342,7 +342,8 @@ fun AddTokenDialog(
                         OutlinedTextField(
                             value = issuer,
                             onValueChange = { issuer = it; errorMessage = "" },
-                            label = { Text("平台/服务商 (如: AWS, Google, Steam)") },
+                            label = { Text("平台/服务商") },
+                            placeholder = { Text("如 AWS、Google、Steam") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(Radius.M)
@@ -351,7 +352,8 @@ fun AddTokenDialog(
                         OutlinedTextField(
                             value = accountName,
                             onValueChange = { accountName = it },
-                            label = { Text("账号/邮箱 (如: user@company.com)") },
+                            label = { Text("账号/邮箱") },
+                            placeholder = { Text("如 user@company.com") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(Radius.M)
@@ -360,8 +362,8 @@ fun AddTokenDialog(
                         OutlinedTextField(
                             value = secret,
                             onValueChange = { secret = it; errorMessage = "" },
-                            label = { Text("Secret 密钥 (Base32，至少 8 位)") },
-                            placeholder = { Text("例如: JBSWY3DPEHPK3PXP") },
+                            label = { Text("Secret 密钥") },
+                            placeholder = { Text("Base32，至少 8 位，如 JBSWY3DPEHPK3PXP") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(Radius.M)
@@ -370,7 +372,8 @@ fun AddTokenDialog(
                         OutlinedTextField(
                             value = tenantEnv,
                             onValueChange = { tenantEnv = it },
-                            label = { Text("环境/多租户标注 (选填，如: Prod, Dev)") },
+                            label = { Text("环境标注 (选填)") },
+                            placeholder = { Text("如 Prod、Dev") },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(Radius.M)
@@ -387,7 +390,7 @@ fun AddTokenDialog(
                                 val wsColor = remember(ws.colorHex) { parseHexColor(ws.colorHex) }
                                 FilterChip(
                                     selected = selectedWorkspaceId == ws.id,
-                                    onClick = { selectedWorkspaceId = ws.id },
+                                    onClick = { draft.selectedWorkspaceId = ws.id },
                                     leadingIcon = {
                                         Box(
                                             modifier = Modifier

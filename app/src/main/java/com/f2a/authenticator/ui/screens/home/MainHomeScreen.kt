@@ -9,6 +9,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +64,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -77,17 +80,22 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
 import com.f2a.authenticator.data.model.AuthToken
 import com.f2a.authenticator.data.model.SortMode
 import com.f2a.authenticator.data.model.Tag
 import com.f2a.authenticator.data.model.Workspace
 import com.f2a.authenticator.ui.components.ClipboardCountdownBanner
+import com.f2a.authenticator.ui.components.CollapsingHeader
 import com.f2a.authenticator.ui.components.CopyFeedback
 import com.f2a.authenticator.ui.components.EmptyState
 import com.f2a.authenticator.ui.components.IssuerAccordionCard
 import com.f2a.authenticator.ui.components.TagFilterBar
 import com.f2a.authenticator.ui.components.WorkspaceTabBar
+import com.f2a.authenticator.ui.components.collapsingHeaderConnection
+import com.f2a.authenticator.ui.components.rememberCollapsingHeaderState
+import com.f2a.authenticator.ui.components.rememberForwardingScrollState
 import com.f2a.authenticator.ui.state.HomeUiState
 import com.f2a.authenticator.ui.theme.IconSize
 import com.f2a.authenticator.ui.theme.LocalSemanticColors
@@ -96,6 +104,7 @@ import com.f2a.authenticator.ui.theme.Radius
 import com.f2a.authenticator.ui.theme.Space
 import com.f2a.authenticator.ui.theme.Touch
 import com.f2a.authenticator.ui.theme.Type
+import com.f2a.authenticator.ui.theme.contentMaxWidth
 import com.f2a.authenticator.utils.ClipboardGuard
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -198,6 +207,24 @@ fun MainHomeScreen(
             .collect { page ->
                 workspaceList.getOrNull(page)?.id?.let(onSelectWorkspace)
             }
+    }
+
+    val headerState = rememberCollapsingHeaderState()
+    val activeWorkspaceId by rememberUpdatedState(uiState.activeWorkspaceId)
+    val outsideListScroll = rememberForwardingScrollState { listStates[activeWorkspaceId] }
+    val headerConnection = remember(headerState, listStates) {
+        collapsingHeaderConnection(headerState) {
+            listStates[activeWorkspaceId]?.canScrollForward == true
+        }
+    }
+    // 切换工作区或筛选条件后列表可能不足一屏，头部必须可见
+    LaunchedEffect(
+        pagerState.settledPage,
+        uiState.isSearchExpanded,
+        uiState.searchQuery,
+        uiState.selectedTagFilterId
+    ) {
+        headerState.expand()
     }
 
     Scaffold(
@@ -311,6 +338,9 @@ fun MainHomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .nestedScroll(headerConnection)
+                .scrollable(outsideListScroll, Orientation.Vertical)
+                .contentMaxWidth()
         ) {
             // 独立搜索胶囊栏（彻底解决 TopAppBar 内嵌 TextField 裁切问题）
             AnimatedVisibility(
@@ -361,59 +391,6 @@ fun MainHomeScreen(
                 }
             }
 
-            // 加密灾备提醒条
-            AnimatedVisibility(
-                visible = uiState.backupOverdueBanner && !backupBannerDismissed && !uiState.vaultLoadCorrupted
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Space.L, vertical = Space.XS)
-                        .clip(RoundedCornerShape(Radius.M))
-                        .background(semantic.warningBg)
-                        .border(
-                            1.dp,
-                            semantic.timerWarning.copy(alpha = 0.35f),
-                            RoundedCornerShape(Radius.M)
-                        )
-                        .padding(start = Space.M, end = Space.XS, top = Space.XS, bottom = Space.XS),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Backup,
-                        contentDescription = null,
-                        tint = semantic.warningText,
-                        modifier = Modifier.size(IconSize.S)
-                    )
-                    Spacer(modifier = Modifier.width(Space.S))
-                    Text(
-                        text = if (uiState.daysSinceLastBackup == null) {
-                            "尚未创建过 .jdf2 加密灾备"
-                        } else {
-                            "距上次安全备份已 ${uiState.daysSinceLastBackup} 天"
-                        },
-                        style = Type.BodyS,
-                        fontWeight = FontWeight.Medium,
-                        color = semantic.warningText,
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(onClick = onOpenBackupDialog) {
-                        Text("去备份", style = Type.Label, color = MaterialTheme.colorScheme.primary)
-                    }
-                    IconButton(
-                        onClick = { backupBannerDismissed = true },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "暂不提醒",
-                            tint = semantic.warningText,
-                            modifier = Modifier.size(IconSize.XS)
-                        )
-                    }
-                }
-            }
-
             // 剪贴板敏感凭据自动清除倒计时浮条
             ClipboardCountdownBanner(
                 remainingSeconds = clipboardRemainingSeconds,
@@ -426,48 +403,102 @@ fun MainHomeScreen(
                 }
             )
 
-            WorkspaceTabBar(
-                workspaces = workspaceList,
-                selectedIndex = pagerState.currentPage,
-                onSelectWorkspace = { index, ws ->
-                    pendingScrollTarget = index
-                    onSelectWorkspace(ws.id)
-                    uiScope.launch {
-                        try {
-                            pagerState.animateScrollToPage(index)
-                        } finally {
-                            if (pendingScrollTarget == index) {
-                                pendingScrollTarget = null
+            CollapsingHeader(state = headerState) {
+                Column {
+                    // 加密灾备提醒条
+                    AnimatedVisibility(
+                        visible = uiState.backupOverdueBanner && !backupBannerDismissed && !uiState.vaultLoadCorrupted
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Space.L, vertical = Space.XS)
+                                .clip(RoundedCornerShape(Radius.M))
+                                .background(semantic.warningBg)
+                                .border(
+                                    1.dp,
+                                    semantic.timerWarning.copy(alpha = 0.35f),
+                                    RoundedCornerShape(Radius.M)
+                                )
+                                .padding(start = Space.M, end = Space.XS, top = Space.XS, bottom = Space.XS),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Backup,
+                                contentDescription = null,
+                                tint = semantic.warningText,
+                                modifier = Modifier.size(IconSize.S)
+                            )
+                            Spacer(modifier = Modifier.width(Space.S))
+                            Text(
+                                text = if (uiState.daysSinceLastBackup == null) {
+                                    "尚未创建过 .jdf2 加密灾备"
+                                } else {
+                                    "距上次安全备份已 ${uiState.daysSinceLastBackup} 天"
+                                },
+                                style = Type.BodyS,
+                                fontWeight = FontWeight.Medium,
+                                color = semantic.warningText,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(onClick = onOpenBackupDialog) {
+                                Text("去备份", style = Type.Label, color = MaterialTheme.colorScheme.primary)
+                            }
+                            IconButton(onClick = { backupBannerDismissed = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "暂不提醒",
+                                    tint = semantic.warningText,
+                                    modifier = Modifier.size(IconSize.XS)
+                                )
                             }
                         }
                     }
-                }
-            )
 
-            TagFilterBar(
-                tags = uiState.tags,
-                selectedTagFilterId = uiState.selectedTagFilterId,
-                issuerGroups = uiState.issuerGroups,
-                allExpanded = uiState.allExpanded,
-                isFiltering = uiState.isFiltering,
-                sortMode = uiState.sortMode,
-                onSelectTag = onSelectTagFilter,
-                onLongClickTag = { tag -> tagToDelete = tag },
-                onAddTagClick = { showCreateTagDialog = true },
-                onToggleExpandAll = onToggleExpandAll,
-                onSelectSortMode = onSelectSortMode,
-                onJumpToIssuer = { key ->
-                    val idx = onJumpToIssuer(key)
-                    if (idx >= 0) {
-                        val activeListState = listStates[uiState.activeWorkspaceId]
-                        if (activeListState != null) {
-                            uiScope.launch { activeListState.animateScrollToItem(idx) }
+                    WorkspaceTabBar(
+                        workspaces = workspaceList,
+                        selectedIndex = pagerState.currentPage,
+                        onSelectWorkspace = { index, ws ->
+                            pendingScrollTarget = index
+                            onSelectWorkspace(ws.id)
+                            uiScope.launch {
+                                try {
+                                    pagerState.animateScrollToPage(index)
+                                } finally {
+                                    if (pendingScrollTarget == index) {
+                                        pendingScrollTarget = null
+                                    }
+                                }
+                            }
                         }
-                    }
-                }
-            )
+                    )
 
-            Spacer(modifier = Modifier.height(Space.XXS))
+                    TagFilterBar(
+                        tags = uiState.tags,
+                        selectedTagFilterId = uiState.selectedTagFilterId,
+                        issuerGroups = uiState.issuerGroups,
+                        allExpanded = uiState.allExpanded,
+                        isFiltering = uiState.isFiltering,
+                        sortMode = uiState.sortMode,
+                        onSelectTag = onSelectTagFilter,
+                        onLongClickTag = { tag -> tagToDelete = tag },
+                        onAddTagClick = { showCreateTagDialog = true },
+                        onToggleExpandAll = onToggleExpandAll,
+                        onSelectSortMode = onSelectSortMode,
+                        onJumpToIssuer = { key ->
+                            val idx = onJumpToIssuer(key)
+                            if (idx >= 0) {
+                                val activeListState = listStates[uiState.activeWorkspaceId]
+                                if (activeListState != null) {
+                                    uiScope.launch { activeListState.animateScrollToItem(idx) }
+                                }
+                            }
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(Space.XXS))
+                }
+            }
 
             HorizontalPager(
                 state = pagerState,
@@ -657,10 +688,7 @@ private fun SearchCapsuleBar(
                 )
             }
             if (query.isNotEmpty()) {
-                IconButton(
-                    onClick = onClearQuery,
-                    modifier = Modifier.size(36.dp)
-                ) {
+                IconButton(onClick = onClearQuery) {
                     Icon(
                         imageVector = Icons.Default.Close,
                         contentDescription = "清空搜索词",

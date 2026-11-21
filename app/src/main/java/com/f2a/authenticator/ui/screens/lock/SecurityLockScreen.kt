@@ -16,6 +16,8 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -51,6 +53,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -67,6 +70,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import com.f2a.authenticator.security.PinConfigResult
@@ -105,7 +109,7 @@ fun SecurityLockScreen(
     var isVerifying by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf("") }
     var lockoutSeconds by remember(authState.lockoutSeconds) {
-        mutableStateOf(authState.lockoutSeconds)
+        mutableLongStateOf(authState.lockoutSeconds)
     }
     var shakeTrigger by remember { mutableIntStateOf(0) }
     val shakeOffset = remember { Animatable(0f) }
@@ -157,15 +161,7 @@ fun SecurityLockScreen(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .systemBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Space.XXL, vertical = Space.XL),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
+        val header: @Composable () -> Unit = {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.padding(top = Space.XL)
@@ -276,7 +272,7 @@ fun SecurityLockScreen(
                 val activeColor = if (hasError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                 Row(
                     modifier = Modifier
-                        .offset(x = shakeOffset.value.dp)
+                        .offset { IntOffset(shakeOffset.value.dp.roundToPx(), 0) }
                         .semantics(mergeDescendants = true) {
                             contentDescription = "已输入 $currentLength 位，共 6 位"
                         },
@@ -327,9 +323,12 @@ fun SecurityLockScreen(
                     }
                 }
             }
+        }
 
+        val keypad: @Composable () -> Unit = {
             Column(
                 modifier = Modifier
+                    .widthIn(max = KeypadMaxWidth)
                     .fillMaxWidth()
                     .padding(top = Space.L, bottom = Space.L)
                     .alpha(if (isLockedOut || isVerifying) 0.4f else 1f),
@@ -501,8 +500,52 @@ fun SecurityLockScreen(
                 }
             }
         }
+
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxSize()
+                .systemBarsPadding()
+        ) {
+            if (maxWidth > maxHeight && maxHeight < CompactHeightBreakpoint) {
+                // 横屏：竖排会把键盘挤出屏幕，改为提示区与键盘左右分栏
+                Row(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = Space.XXL),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                        contentAlignment = Alignment.Center
+                    ) { header() }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                        contentAlignment = Alignment.Center
+                    ) { keypad() }
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = Space.XXL, vertical = Space.XL),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    header()
+                    keypad()
+                }
+            }
+        }
     }
 }
+
+private val KeypadMaxWidth = 360.dp
+private val CompactHeightBreakpoint = 480.dp
 
 @Composable
 private fun LockKey(

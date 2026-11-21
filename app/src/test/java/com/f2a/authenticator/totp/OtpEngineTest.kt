@@ -1,5 +1,6 @@
 package com.f2a.authenticator.totp
 
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -165,5 +166,34 @@ class OtpEngineTest {
         } finally {
             Locale.setDefault(previous)
         }
+    }
+
+    @Test
+    fun base32Decode_ignoresSeparatorsCaseAndPadding() {
+        val expected = "Hello!\u00de\u00ad\u00be\u00ef".toByteArray(Charsets.ISO_8859_1)
+        assertArrayEquals(expected, OtpEngine.decodeBase32("JBSWY3DPEHPK3PXP"))
+        assertArrayEquals(expected, OtpEngine.decodeBase32(" jbsw-y3dp ehpk\n3pxp==== "))
+        assertArrayEquals(expected, OtpEngine.decodeBase32("JBSW!Y3DP0EHPK3PXP"))
+        assertArrayEquals("f".toByteArray(), OtpEngine.decodeBase32("MY======"))
+        assertArrayEquals("foobar".toByteArray(), OtpEngine.decodeBase32("MZXW6YTBOI======"))
+        assertEquals(0, OtpEngine.decodeBase32("").size)
+        assertEquals(0, OtpEngine.decodeBase32("-= \n").size)
+    }
+
+    @Test
+    fun base32Validation_onlyTrimsOuterWhitespace() {
+        assertTrue(OtpEngine.isValidBase32("\tJBSWY3DPEHPK3PXP\t"))
+        assertFalse(OtpEngine.isValidBase32("JBSW\tY3DP"))
+        assertFalse(OtpEngine.isValidBase32("-=-"))
+        assertFalse(OtpEngine.isValidBase32("JBSWY3DP\u00e9"))
+    }
+
+    @Test
+    fun otp_keepsLeadingZerosFor6And8Digits() {
+        val secret = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+        val codes = (0L until 2000L).map { OtpEngine.generateHotp(secret, it, 6) }
+        assertTrue(codes.all { it.length == 6 && it.all(Char::isDigit) })
+        assertTrue(codes.any { it.startsWith("0") })
+        assertTrue((0L until 200L).all { OtpEngine.generateHotp(secret, it, 8).length == 8 })
     }
 }

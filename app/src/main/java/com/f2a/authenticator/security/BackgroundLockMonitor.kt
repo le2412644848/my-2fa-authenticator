@@ -12,9 +12,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/**
+ * 全部状态仅在主线程读写：生命周期回调由系统在主线程派发，延时锁定也必须在同一线程执行。
+ */
 class BackgroundLockMonitor(
     private val clock: Clock = SystemClockImpl,
-    private val timerDispatcher: CoroutineDispatcher = Dispatchers.Default
+    private val timerDispatcher: CoroutineDispatcher = Dispatchers.Main
 ) : Application.ActivityLifecycleCallbacks {
 
     private var startedActivityCount = 0

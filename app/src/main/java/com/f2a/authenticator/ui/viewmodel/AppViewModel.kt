@@ -16,6 +16,7 @@ import com.f2a.authenticator.security.BiometricStatus
 import com.f2a.authenticator.security.PinConfigResult
 import com.f2a.authenticator.security.SecurityLockManager
 import com.f2a.authenticator.ui.state.ActiveModal
+import com.f2a.authenticator.ui.state.AddTokenDraft
 import com.f2a.authenticator.ui.state.AppRoute
 import com.f2a.authenticator.ui.state.AppShellUiState
 import com.f2a.authenticator.ui.state.VaultAuthState
@@ -44,6 +45,9 @@ class AppViewModel(
     private val authMetaFlow = MutableStateFlow(readAuthMeta())
     private val routeFlow = MutableStateFlow<AppRoute>(AppRoute.Home)
     private val activeModalFlow = MutableStateFlow<ActiveModal>(ActiveModal.None)
+
+    // 【安全红线】含明文种子，仅驻留内存；关闭弹窗、锁定、自毁、ViewModel 销毁时清空。
+    val addTokenDraft = AddTokenDraft()
     private val activeWorkspaceIdFlow = MutableStateFlow(
         preferencesRepository.preferences.value.lastActiveWorkspaceId.ifBlank { "all" }
     )
@@ -241,6 +245,7 @@ class AppViewModel(
         isUnlockedFlow.value = false
         routeFlow.value = AppRoute.Home
         activeModalFlow.value = ActiveModal.None
+        addTokenDraft.clear()
         tokenRepository.lockInMemory()
         _lockSessionCounter.update { it + 1L }
         refreshAuthState()
@@ -276,6 +281,7 @@ class AppViewModel(
 
     fun closeModal() {
         activeModalFlow.value = ActiveModal.None
+        addTokenDraft.clear()
     }
 
     fun setActiveWorkspaceId(workspaceId: String) {
@@ -324,6 +330,7 @@ class AppViewModel(
 
     fun executeSelfDestruct(onComplete: () -> Unit) {
         viewModelScope.launch {
+            addTokenDraft.clear()
             tokenRepository.wipeInMemoryState()
             preferencesRepository.clearAllPreferences()
             ClipboardGuard.clearNow(getApplication())
@@ -333,6 +340,11 @@ class AppViewModel(
             _lockSessionCounter.update { it + 1L }
             onComplete()
         }
+    }
+
+    override fun onCleared() {
+        addTokenDraft.clear()
+        super.onCleared()
     }
 
     class Factory(

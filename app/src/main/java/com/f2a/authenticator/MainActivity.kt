@@ -401,6 +401,7 @@ private fun UnlockedAppShell(
                 workspaces = homeState.workspaces,
                 tags = homeState.tags,
                 activeWorkspaceId = shellState.activeWorkspaceId,
+                draft = appViewModel.addTokenDraft,
                 onDismiss = { appViewModel.closeModal() },
                 onConfirm = { newToken ->
                     appViewModel.addSingleTokenDedup(newToken)

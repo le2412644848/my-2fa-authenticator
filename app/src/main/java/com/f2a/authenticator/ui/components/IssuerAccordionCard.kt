@@ -61,6 +61,7 @@ fun IssuerAccordionCard(
     group: IssuerGroupUi,
     allTags: List<Tag>,
     clipboardClearSeconds: Int,
+    modifier: Modifier = Modifier,
     privacyMasked: Boolean = false,
     nowMsProvider: () -> Long,
     onToggleExpand: () -> Unit,
@@ -68,8 +69,7 @@ fun IssuerAccordionCard(
     onTogglePin: (String) -> Unit,
     onRequestDelete: (AuthToken) -> Unit,
     onAdvanceHotp: (AuthToken) -> Unit,
-    onCopied: (String) -> Unit,
-    modifier: Modifier = Modifier
+    onCopied: (String) -> Unit
 ) {
     val haptic = LocalHapticFeedback.current
     val semantic = LocalSemanticColors.current

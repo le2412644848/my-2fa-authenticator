@@ -68,6 +68,11 @@ android {
         }
     }
 
+    lint {
+        // 安全关键状态（PIN、锁定计数、自毁标记）必须同步落盘，commit() 为有意为之
+        disable += "ApplySharedPref"
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

@@ -2,6 +2,9 @@ package com.f2a.authenticator.security
 
 import android.app.Activity
 import com.f2a.authenticator.data.model.AutoLockTimeout
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -77,6 +80,41 @@ class BackgroundLockMonitorTest {
 
         monitor.onActivityStarted(activity)
         monitor.onActivityStopped(activity)
+        assertEquals(1, lockCount)
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun timedTimeout_locksOnTimerDispatcherOnlyWhileStillInBackground() {
+        val scheduler = TestCoroutineScheduler()
+        val clock = MutableClock(10_000L)
+        val monitor = BackgroundLockMonitor(clock, StandardTestDispatcher(scheduler))
+        val activity = Activity()
+        val timeout = AutoLockTimeout.entries.first {
+            it != AutoLockTimeout.NEVER && it != AutoLockTimeout.IMMEDIATE
+        }
+        val timeoutMs = timeout.seconds * 1000L
+        var lockCount = 0
+
+        monitor.setLockHandler(
+            timeoutProvider = { timeout },
+            onLock = { lockCount++ }
+        )
+
+        monitor.onActivityStarted(activity)
+        monitor.onActivityStopped(activity)
+        scheduler.advanceTimeBy(timeoutMs - 1)
+        scheduler.runCurrent()
+        assertEquals(0, lockCount)
+        scheduler.advanceTimeBy(1)
+        scheduler.runCurrent()
+        assertEquals(1, lockCount)
+
+        monitor.onActivityStarted(activity)
+        monitor.onActivityStopped(activity)
+        scheduler.advanceTimeBy(timeoutMs - 1)
+        monitor.onActivityStarted(activity)
+        scheduler.advanceUntilIdle()
         assertEquals(1, lockCount)
     }
 }

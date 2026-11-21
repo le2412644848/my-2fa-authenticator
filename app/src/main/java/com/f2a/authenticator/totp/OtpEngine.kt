@@ -4,7 +4,6 @@ import java.nio.ByteBuffer
 import java.util.Locale
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
-import kotlin.math.pow
 
 /**
  * 工业级高精度 RFC 6238 / RFC 4226 TOTP/HOTP 算法引擎
@@ -28,6 +27,15 @@ object OtpEngine {
         'X', 'Y'
     )
 
+    private val BASE32_LOOKUP = IntArray(128) { -1 }.also { table ->
+        BASE32_CHARS.forEachIndexed { index, c ->
+            table[c.code] = index
+            table[c.lowercaseChar().code] = index
+        }
+    }
+
+    private val DIGIT_MODULUS = intArrayOf(1_000_000, 10_000_000, 100_000_000)
+
     /** P2-06：统一 digits 合法化，避免 10.0.pow 溢出/负值崩溃 */
     private fun safeDigits(digits: Int): Int = digits.coerceIn(6, 8)
 
@@ -36,17 +44,53 @@ object OtpEngine {
 
     /** 仅保留合法 Base32 字符（导入严格校验另由 OtpUriParser 处理） */
     fun isValidBase32(input: String): Boolean {
-        val c = input.trim().replace("-", "").replace(" ", "")
-            .replace("\n", "").replace("\r", "").replace("=", "")
-            .uppercase(Locale.US)
-        return c.isNotEmpty() && c.all { it in BASE32_CHARS }
+        if (!isAscii(input)) return isValidBase32Slow(input)
+        var start = 0
+        var end = input.length
+        while (start < end && input[start].isWhitespace()) start++
+        while (end > start && input[end - 1].isWhitespace()) end--
+        var valid = 0
+        for (i in start until end) {
+            val c = input[i]
+            if (isIgnorable(c)) continue
+            if (BASE32_LOOKUP[c.code] < 0) return false
+            valid++
+        }
+        return valid > 0
     }
 
     /**
      * 将 Base32 编码字符串解码为原始字节数组（全自动脏数据清洗）
      */
     fun decodeBase32(input: String): ByteArray {
-        val cleanInput = input.trim()
+        if (!isAscii(input)) return decodeBase32Slow(input)
+
+        val bytes = ByteArray((input.length * 5) / 8)
+        var buffer = 0
+        var bitsLeft = 0
+        var count = 0
+
+        for (c in input) {
+            val valIndex = BASE32_LOOKUP[c.code]
+            if (valIndex < 0) continue
+
+            buffer = (buffer shl 5) or valIndex
+            bitsLeft += 5
+            if (bitsLeft >= 8) {
+                bytes[count++] = (buffer shr (bitsLeft - 8)).toByte()
+                bitsLeft -= 8
+            }
+        }
+        return if (count == bytes.size) bytes else bytes.copyOf(count)
+    }
+
+    private fun isAscii(input: String): Boolean = input.all { it.code < 128 }
+
+    private fun isIgnorable(c: Char): Boolean =
+        c == '-' || c == '=' || c == ' ' || c == '\n' || c == '\r'
+
+    private fun cleanBase32Slow(input: String): String =
+        input.trim()
             .replace("-", "")
             .replace(" ", "")
             .replace("\n", "")
@@ -54,6 +98,14 @@ object OtpEngine {
             .replace("=", "")
             .uppercase(Locale.US)
 
+    private fun isValidBase32Slow(input: String): Boolean {
+        val c = cleanBase32Slow(input)
+        return c.isNotEmpty() && c.all { it in BASE32_CHARS }
+    }
+
+    /** 非 ASCII 输入走原始逐步清洗路径，保持大小写折叠语义不变 */
+    private fun decodeBase32Slow(input: String): ByteArray {
+        val cleanInput = cleanBase32Slow(input)
         if (cleanInput.isEmpty()) return ByteArray(0)
 
         val bytes = ByteArray((cleanInput.length * 5) / 8)
@@ -238,9 +290,7 @@ object OtpEngine {
                     ((hash[offset + 2].toInt() and 0xFF) shl 8) or
                     (hash[offset + 3].toInt() and 0xFF)
 
-            val otp = binary % (10.0.pow(safe.toDouble()).toInt())
-            val formatStr = "%0${safe}d"
-            String.format(Locale.US, formatStr, otp)
+            (binary % DIGIT_MODULUS[safe - 6]).toString().padStart(safe, '0')
         } catch (e: Exception) {
             "0".repeat(safe)
         }

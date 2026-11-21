@@ -104,7 +104,8 @@ fun AddWorkspaceDialog(
                 OutlinedTextField(
                     value = newWsName,
                     onValueChange = { newWsName = it },
-                    label = { Text("工作区名称 (如: 游戏资产, 跨境电商)") },
+                    label = { Text("工作区名称") },
+                    placeholder = { Text("如 游戏资产、跨境电商") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(Radius.S)

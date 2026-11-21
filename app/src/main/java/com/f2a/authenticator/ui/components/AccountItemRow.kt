@@ -153,70 +153,79 @@ fun AccountItemRow(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (token.isPinned) {
-                Icon(
-                    imageVector = Icons.Default.PushPin,
-                    contentDescription = "已置顶",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(14.dp)
-                )
-                Spacer(modifier = Modifier.width(Space.XS))
-            }
-
-            matchedTagsWithColor.take(1).forEach { (tag, tagColor) ->
-                val textColor = accessibleTagTextColor(tagColor, semantic.isDark)
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(Radius.XS))
-                        .background(tagColor.copy(alpha = 0.16f))
-                        .padding(horizontal = Space.HS, vertical = Space.XXS)
-                ) {
+            // 账号名是识别凭据的主信息，独占首行；标签与环境徽标降为次行，空间不足时由它们收缩
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (token.isPinned) {
+                        Icon(
+                            imageVector = Icons.Default.PushPin,
+                            contentDescription = "已置顶",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(Space.XS))
+                    }
                     Text(
-                        text = tag.name,
-                        color = textColor,
-                        style = Type.Caption,
+                        text = token.accountName,
+                        style = Type.BodyM,
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Spacer(modifier = Modifier.width(Space.HS))
-            }
-            if (matchedTagsWithColor.size > 1) {
-                Text(
-                    text = "+${matchedTagsWithColor.size - 1}",
-                    style = Type.Caption,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.width(Space.HS))
-            }
 
-            if (token.tenantEnv.isNotBlank()) {
-                val (badgeBg, badgeText) = envColors
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(Radius.XS))
-                        .background(badgeBg)
-                        .padding(horizontal = Space.HS, vertical = Space.XXS)
-                ) {
-                    Text(
-                        text = token.tenantEnv,
-                        color = badgeText,
-                        style = Type.Label,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                val firstTag = matchedTagsWithColor.firstOrNull()
+                if (firstTag != null || token.tenantEnv.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(Space.XXS))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (token.tenantEnv.isNotBlank()) {
+                            val (badgeBg, badgeText) = envColors
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f, fill = false)
+                                    .clip(RoundedCornerShape(Radius.XS))
+                                    .background(badgeBg)
+                                    .padding(horizontal = Space.HS, vertical = Space.XXS)
+                            ) {
+                                Text(
+                                    text = token.tenantEnv,
+                                    color = badgeText,
+                                    style = Type.Label,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(Space.HS))
+                        }
+                        if (firstTag != null) {
+                            val (tag, tagColor) = firstTag
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f, fill = false)
+                                    .clip(RoundedCornerShape(Radius.XS))
+                                    .background(tagColor.copy(alpha = 0.16f))
+                                    .padding(horizontal = Space.HS, vertical = Space.XXS)
+                            ) {
+                                Text(
+                                    text = tag.name,
+                                    color = accessibleTagTextColor(tagColor, semantic.isDark),
+                                    style = Type.Caption,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        if (matchedTagsWithColor.size > 1) {
+                            Spacer(modifier = Modifier.width(Space.HS))
+                            Text(
+                                text = "+${matchedTagsWithColor.size - 1}",
+                                style = Type.Caption,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
-                Spacer(modifier = Modifier.width(Space.S))
             }
-
-            Text(
-                text = token.accountName,
-                style = Type.BodyM,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
 
             if (privacyMasked && !token.secretInvalid) {
                 IconButton(
